@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "system.h": "c",
+        "seg.h": "c",
+        "timer.h": "c",
+        "kbd.h": "c",
+        "iic.h": "c",
+        "eeprom.h": "c",
+        "pw.h": "c",
+        "uln2003d.h": "c",
+        "uart.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
+}

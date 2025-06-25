@@ -1,0 +1,340 @@
+C51 COMPILER V9.60.0.0   MAIN                                                              06/25/2025 11:40:12 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst
+                    -) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "System.h"
+   2          
+   3          u8 password[3][8] = {{2,2,4,4,6,6,8,8},{1,2,3,4,5,6,7,8},{0,0,0,0,0,0,0,0}};//系统已储存的密码，�
+             -��电会替换成E2PROM的
+   4          u8 admin[8] = {8,8,8,8,8,8,8,8};//管理员万能密码
+   5          u8 pw_input[8] = {0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40};//用户输入的密码，用于对照，登录
+             -无数据默认为0x40，修改无数据默认为0x80
+   6          u8 pw_index = 8;//输入密码下标，指向8时输入密码为空
+   7          char user = -1;//登录的用户ID(012。-1表示未登录,3表示管理员)
+   8          u8 error = 0;//错误总次数，超过3读秒
+   9          
+  10          u8 mode = 0;//模式切换标志位，模式0输入密码，模式1密码正确可修改自己的密码，
+             -模式2管理员模式可修改全员密码
+  11          // bit flash;//0.1s一闪
+  12          bit errflag;//错误标志位
+  13          bit adflag = 1;//管理员子模式（0时选择ID，1时修改其ID）
+  14          bit beepflag;//蜂鸣器单响标志位
+  15          
+  16          u8 segcnt = 0;//100
+  17          u8 kbdcnt = 0;//10
+  18          // u16 flashcnt = 0;//500
+  19          u8 keycnt;
+  20          u16 errcnt = 0;//倒计时重新输入5s
+  21          u8 beepcnt;//让蜂鸣器响一声0.075s
+  22          bit stepflag;//步进电机每步延时（设为1）
+  23          
+  24          void KBD_Process()
+  25          {
+  26   1        if(kbdcnt)  return;
+  27   1        kbdcnt = 1;
+  28   1      
+  29   1        KBD_Read();
+  30   1      
+  31   1        if(error >= 3)//超过三次，停止显示，禁止输入
+  32   1          return;
+  33   1      
+  34   1        switch(mode){
+  35   2          case 0:{//输入密码模式
+  36   3            //输入数字
+  37   3                  mPW_Main();
+  38   3      
+  39   3                  if(pres == 0x11){//确认密码
+  40   4              if(mPW_IsEmpty()) return;
+  41   4              if(mPW_IsAdmin()){
+  42   5                mPW_Clear();
+  43   5                Open_Door();
+  44   5                //密码正确，切换到模式2
+  45   5                error = 0;
+  46   5                mode = 2;
+  47   5                user = 0;
+  48   5                SEG_Clear();
+  49   5                seg_buf[0] = tab[10]|0x80;//"A."表示当前在Admin模式
+  50   5              }
+  51   4              else if(mPW_IsCorrect()){
+C51 COMPILER V9.60.0.0   MAIN                                                              06/25/2025 11:40:12 PAGE 2   
+
+  52   5                mPW_Clear();
+  53   5                Open_Door();
+  54   5                //密码正确，切换到模式1
+  55   5                error = 0;
+  56   5                if(user != -1){
+  57   6                  mode = 1;
+  58   6                  SEG_Clear();
+  59   6                  seg_buf[0] = tab[12]|0x80;//"C."表示当前在Client模式
+  60   6                }
+  61   5              }
+  62   4              else{
+  63   5                mPW_Clear();
+  64   5                //密码错误，清空输入
+  65   5                beepflag = 1;
+  66   5                error++;
+  67   5              }return;
+  68   4            }
+  69   3      
+  70   3            if(pres == 0x21)  mPW_Del();//删除密码
+  71   3            
+  72   3            if(cont == 0x41){//长按清空密码
+  73   4              keycnt++;
+  74   4              if(keycnt >= 100){
+  75   5                mPW_Clear();
+  76   5              }
+  77   4            }
+  78   3      
+  79   3            if(keycnt && cont == 0x00){
+  80   4              keycnt = 0;
+  81   4            }
+  82   3          };break;
+  83   2          case 1:{//修改密码模式
+  84   3            //输入数字
+  85   3            mPW_Main();
+  86   3      
+  87   3            if(pres == 0x21)  mPW_Del();//删除密码
+  88   3            
+  89   3            if(cont == 0x41){//长按清空密码
+  90   4              keycnt++;
+  91   4              if(keycnt >= 100){
+  92   5                mPW_Clear();
+  93   5              }
+  94   4            }
+  95   3      
+  96   3            if(keycnt && cont == 0x00){
+  97   4              keycnt = 0;
+  98   4            }
+  99   3            
+ 100   3            if(pres == 0x11){//确认修改密码
+ 101   4              if(mPW_IsEmpty()) return;
+ 102   4              mPW_Set();
+ 103   4              EEPROM_Write(pw_input,user*8,8);//写入修改后密码
+ 104   4              return;
+ 105   4            }
+ 106   3          };break;
+ 107   2          case 2:{//管理员模式
+ 108   3              if(adflag){//界面1选择ID
+ 109   4              if(pres == 0x28)
+ 110   4                if(user != USER_MAX)
+ 111   4                  user += 1;//向上翻页
+ 112   4                else
+ 113   4                  user = 0;
+C51 COMPILER V9.60.0.0   MAIN                                                              06/25/2025 11:40:12 PAGE 3   
+
+ 114   4              if(pres == 0x18)
+ 115   4                if(user != 0)
+ 116   4                  user -= 1;//向下翻页
+ 117   4                else
+ 118   4                  user = USER_MAX;//置为管理员下标
+ 119   4            }
+ 120   3            else{
+ 121   4              mPW_Main();
+ 122   4      
+ 123   4              if(pres == 0x21)  mPW_Del();//删除密码
+ 124   4              
+ 125   4              if(cont == 0x14){//长按显示旧密码
+ 126   5                  if(user != USER_MAX){
+ 127   6                  keycnt++;
+ 128   6                  if(keycnt >= 100){
+ 129   7                    mPW_Observe();
+ 130   7                  }
+ 131   6                }
+ 132   5              }
+ 133   4      
+ 134   4              if(cont == 0x41){//长按清空密码
+ 135   5                keycnt++;
+ 136   5                if(keycnt >= 100){
+ 137   6                  mPW_Clear();
+ 138   6                }
+ 139   5              }
+ 140   4      
+ 141   4              if(keycnt && cont == 0x00){
+ 142   5                keycnt = 0;
+ 143   5              }
+ 144   4      
+ 145   4              if(pres == 0x11){//确认修改密码
+ 146   5                if(mPW_IsEmpty()) return;
+ 147   5      
+ 148   5                if(user == USER_MAX){//USER_MAX为管理员下标
+ 149   6                  mPW_AdminSet();
+ 150   6                  EEPROM_Write(pw_input,USER_MAX*8,8);
+ 151   6                }
+ 152   5                else{
+ 153   6                  mPW_Set();
+ 154   6                  EEPROM_Write(password[user],user*8,8);//写入修改后密码
+ 155   6                }
+ 156   5                return;
+ 157   5              }
+ 158   4            }
+ 159   3            if(pres == 0x12){//切换标志位便于多用户管理
+ 160   4              mPW_Clear();
+ 161   4              adflag = ~adflag;
+ 162   4            }
+ 163   3          }
+ 164   2        }
+ 165   1      
+ 166   1        if(pres == 0x81){//退出登录
+ 167   2          mPW_Clear();
+ 168   2          mode = 0;
+ 169   2          user = -1;
+ 170   2        }
+ 171   1      
+ 172   1        // if(pres && (pres != saved_key)){//有新按键触发
+ 173   1        //  EEPROM_Write(&pres,8,1);
+ 174   1        // }
+ 175   1      }
+C51 COMPILER V9.60.0.0   MAIN                                                              06/25/2025 11:40:12 PAGE 4   
+
+ 176          
+ 177          void SEG_Process()
+ 178          {
+ 179   1        u8 i;
+ 180   1      
+ 181   1        // for (i = 0; i < 8; i++)
+ 182   1        // seg_buf[i] = password[1][i];
+ 183   1        
+ 184   1        if(segcnt)  return;
+ 185   1        segcnt = 1;
+ 186   1      
+ 187   1        if(error >= 3){//超过三次，停止显示，禁止输入
+ 188   2          for (i = 0; i < 8; i++){
+ 189   3            seg_buf[i] = 0x00;
+ 190   3          }
+ 191   2          return;
+ 192   2        }
+ 193   1      
+ 194   1        switch(mode)
+ 195   1        {
+ 196   2          case 0:{
+ 197   3            for (i = 0; i < 8; i++)
+ 198   3              seg_buf[i] = (pw_input[i] != 0x40) ? tab[pw_input[i]] : 0x40;//无输入显示"-"
+ 199   3          };break;
+ 200   2          case 1:{
+ 201   3            // seg_buf[0] = (pw_input[0] != 0x40) ? tab[pw_input[0]] : (tab[12]|0x80);//"C."表示当前在Client�
+             -�式
+ 202   3            if(pw_input[7] == 0x40){
+ 203   4              seg_buf[0] = tab[12]|0x80;//"C."表示当前在Client模式
+ 204   4              seg_buf[1] = tab[user]|0x80;//当前用户ID
+ 205   4            }
+ 206   3            else{
+ 207   4              seg_buf[0] = (pw_input[0] != 0x40) ? tab[pw_input[0]] : 0x80;;//有输入则变为点
+ 208   4              seg_buf[1] = (pw_input[1] != 0x40) ? tab[pw_input[1]] : 0x80;
+ 209   4            }
+ 210   3            for (i = 2; i < 8; i++)
+ 211   3              seg_buf[i] = (pw_input[i] != 0x40) ? tab[pw_input[i]] : 0x80;
+ 212   3          };break;
+ 213   2          case 2:{
+ 214   3            if(adflag){
+ 215   4              seg_buf[0] = tab[10]|0x80;//"A."表示当前在Admin模式
+ 216   4              seg_buf[1] = 0x40;//"-"
+ 217   4              seg_buf[2] = 0x40;
+ 218   4              seg_buf[3] = 0x40;
+ 219   4              seg_buf[4] = 0x40;
+ 220   4              seg_buf[5] = 0x40;
+ 221   4              if (user < USER_MAX){
+ 222   5                seg_buf[6] = tab[12]; //"C"
+ 223   5                seg_buf[7] = tab[user];
+ 224   5              }
+ 225   4              else{
+ 226   5                seg_buf[6] = tab[10];//"A"
+ 227   5                seg_buf[7] = tab[13];//"D"
+ 228   5              }
+ 229   4            }
+ 230   3            else{
+ 231   4              for (i = 0; i < 8; i++)
+ 232   4                seg_buf[i] = (pw_input[i] != 0x40) ? tab[pw_input[i]] : 0x80;//无输入显示"."
+ 233   4            }
+ 234   3          };break;
+ 235   2        }
+ 236   1      }
+C51 COMPILER V9.60.0.0   MAIN                                                              06/25/2025 11:40:12 PAGE 5   
+
+ 237          
+ 238          void BEEP_Process(void)
+ 239          {
+ 240   1        if(~errflag && (error >= 3)){//密码错误锁定长响
+ 241   2          BEEP = 1;
+ 242   2          errflag = 1;
+ 243   2        }
+ 244   1        else if(errflag && (error < 3)){
+ 245   2          BEEP = 0;
+ 246   2          errflag = 0;
+ 247   2        }
+ 248   1      
+ 249   1        if(beepflag && ~BEEP)//密码正确短响
+ 250   1          BEEP = 1;
+ 251   1        else if(!beepflag && BEEP)
+ 252   1          BEEP = 0;
+ 253   1      }
+ 254          
+ 255          void main()
+ 256          {
+ 257   1        BEEP = 0;
+ 258   1        mPW_Read();
+ 259   1        Timer0_Init();
+ 260   1        UartInit();
+ 261   1        Stepper_Init();
+ 262   1        
+ 263   1        while(1){
+ 264   2          SEG_Process();
+ 265   2          KBD_Process();
+ 266   2          BEEP_Process();
+ 267   2        }
+ 268   1      }
+ 269          
+ 270          void T0ISR(void)  interrupt 1
+ 271          {
+ 272   1        Timer0_Reload();
+ 273   1        SEG_Display();
+ 274   1        
+ 275   1        if(++segcnt >= 50)  segcnt = 0;
+ 276   1        if(++kbdcnt >= 10)  kbdcnt = 0;
+ 277   1        // if(++flashcnt >= 500){
+ 278   1        //  flashcnt = 0;
+ 279   1        //  flash = ~flash;
+ 280   1        // }
+ 281   1      
+ 282   1        if(error >= 3){
+ 283   2          if(++errcnt >= 5000){
+ 284   3            errcnt = 0;
+ 285   3            error = 0;
+ 286   3          }
+ 287   2        }
+ 288   1        if(beepflag){
+ 289   2          if(++beepcnt >= 75){
+ 290   3            beepcnt = 0;
+ 291   3            beepflag = 0;
+ 292   3          }
+ 293   2        }
+ 294   1        stepflag = 1;
+ 295   1      }
+ 296          
+ 297          // void Uart_Rounite() interrupt 4 //WIFI数据接收
+ 298          // {
+C51 COMPILER V9.60.0.0   MAIN                                                              06/25/2025 11:40:12 PAGE 6   
+
+ 299          //  RI = 0;
+ 300          //  receiveData = SBUF;
+ 301          //  Uart_Send(receiveData);
+ 302          // }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1094    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     50    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      4    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

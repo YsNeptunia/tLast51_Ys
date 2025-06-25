@@ -1,0 +1,79 @@
+C51 COMPILER V9.60.0.0   ULN2003D                                                          06/25/2025 11:40:14 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE ULN2003D
+OBJECT MODULE PLACED IN .\Objects\ULN2003D.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE ULN2003D.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\ULN2
+                    -003D.lst) TABS(2) OBJECT(.\Objects\ULN2003D.obj)
+
+line level    source
+
+   1          #include "ULN2003D.h"
+   2          
+   3          // 步进电机初始化
+   4          void Stepper_Init(void) {
+   5   1          IN1 = 0;
+   6   1          IN2 = 0;
+   7   1          IN3 = 0;
+   8   1          IN4 = 0;
+   9   1      }
+  10          
+  11          // 步进电机单步转动
+  12          void Stepper_Step(int dir) {
+  13   1          static int step = 0;
+  14   1          
+  15   1          if (dir == 1) {  // 正向转动
+  16   2              step++;
+  17   2              if (step >= 4) step = 0;
+  18   2          } else {  // 反向转动
+  19   2              step--;
+  20   2              if (step < 0) step = 3;
+  21   2          }
+  22   1          
+  23   1          switch (step) {
+  24   2              case 0:
+  25   2                  IN1 = 1; IN2 = 0; IN3 = 0; IN4 = 0;
+  26   2                  break;
+  27   2              case 1:
+  28   2                  IN1 = 0; IN2 = 1; IN3 = 0; IN4 = 0;
+  29   2                  break;
+  30   2              case 2:
+  31   2                  IN1 = 0; IN2 = 0; IN3 = 1; IN4 = 0;
+  32   2                  break;
+  33   2              case 3:
+  34   2                  IN1 = 0; IN2 = 0; IN3 = 0; IN4 = 1;
+  35   2                  break;
+  36   2          }
+  37   1      
+  38   1          while(!stepflag)
+  39   1              stepflag = 0;
+  40   1      }
+  41          
+  42          // 步进电机转动一定角度
+  43          void Stepper_Turn(int steps, int dir) {
+  44   1          int i;
+  45   1          for (i = 0; i < steps; i++) {
+  46   2              Stepper_Step(dir);
+  47   2          }
+  48   1      }
+  49          
+  50          // 在密码验证成功后开门
+  51          void Open_Door(void) {
+  52   1          Stepper_Turn(STEPS_PER_REV / 4, 1);  // 假设转动1/4圈开门
+  53   1      }
+
+C51 COMPILER V9.60.0.0   ULN2003D                                                          06/25/2025 11:40:14 PAGE 2   
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    169    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      2    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

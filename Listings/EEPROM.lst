@@ -1,0 +1,79 @@
+C51 COMPILER V9.60.0.0   EEPROM                                                            06/25/2025 11:40:14 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE EEPROM
+OBJECT MODULE PLACED IN .\Objects\EEPROM.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE EEPROM.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\EEPROM
+                    -.lst) TABS(2) OBJECT(.\Objects\EEPROM.obj)
+
+line level    source
+
+   1          #include "EEPROM.h"
+   2          
+   3          static void I2C_Delay(unsigned char n)
+   4          {
+   5   1          do{_nop_();}
+   6   1          while(n--);       
+   7   1      }
+   8          
+   9          void EEPROM_Write(u8* dat,u8 addr,u8 num)//形参：将要写入的字符串；写入的地址（8倍数）；写入的数量
+  10          {
+  11   1        ET0 = 0;//写数据较长，且IO口与数码管冲突（高频较影响），故先关中断
+  12   1      
+  13   1        I2CStart();
+  14   1        I2CSendByte(0xa0);//选择AT24C02芯片，写模式
+  15   1        I2CWaitAck();
+  16   1        
+  17   1        I2CSendByte(addr);//选择写入的地址
+  18   1        I2CWaitAck();
+  19   1        
+  20   1        while(num--){
+  21   2          I2CSendByte(*dat++);//写入数据
+  22   2          I2CWaitAck();
+  23   2          I2C_Delay(200);
+  24   2        }
+  25   1        
+  26   1        I2CStop();
+  27   1        ET0 = 1;
+  28   1      }
+  29          
+  30          void EEPROM_Read(u8* dat,u8 addr,u8 num)//形参：将要读出的字符串；读的地址（8倍数）；读的数量
+  31          {
+  32   1        ET0 = 0;//写数据较长，且IO口与数码管冲突（高频较影响），故先关中断
+  33   1      
+  34   1        I2CStart();
+  35   1        I2CSendByte(0xa0);//选择AT24C02芯片，写模式
+  36   1        I2CWaitAck();
+  37   1        
+  38   1        I2CSendByte(addr);//选择写入的地址
+  39   1        I2CWaitAck();
+  40   1        
+  41   1        I2CStart();
+  42   1        I2CSendByte(0xa1);//选择AT24C02芯片，读模式
+  43   1        I2CWaitAck();
+  44   1        
+  45   1        while(num--){
+  46   2          *dat++ = I2CReceiveByte();
+  47   2          if(num) I2CSendAck(0);//继续读，发送应答
+  48   2          else  I2CSendAck(1);//不应答
+  49   2        }
+  50   1        
+  51   1        I2CStop();
+  52   1        ET0 = 1;//写数据较长，且IO口与数码管冲突（高频较影响），故先关中断
+  53   1      }
+
+C51 COMPILER V9.60.0.0   EEPROM                                                            06/25/2025 11:40:14 PAGE 2   
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    170    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      10
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

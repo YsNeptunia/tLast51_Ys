@@ -1,0 +1,177 @@
+C51 COMPILER V9.60.0.0   PW                                                                06/25/2025 11:40:13 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE PW
+OBJECT MODULE PLACED IN .\Objects\PW.obj
+COMPILER INVOKED BY: D:\UV4\C51\BIN\C51.EXE PW.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\PW.lst) TA
+                    -BS(2) OBJECT(.\Objects\PW.obj)
+
+line level    source
+
+   1          #include "PW.h"
+   2          //密码操作相关函数
+   3          
+   4          void mPW_Shift(bit lr)//密码左移右移
+   5          {
+   6   1        u8 i;
+   7   1        if(lr == 0){//左移
+   8   2          for(i = pw_index;i < 8;i++){
+   9   3            pw_input[i-1] = pw_input[i];
+  10   3          }
+  11   2          pw_input[7] = 0x40;
+  12   2        }
+  13   1        else{//右移
+  14   2          if(pw_index == 0){//数组已满
+  15   3            for(i = 7;i > 0;i--){
+  16   4              pw_input[i] = pw_input[i-1];
+  17   4            }
+  18   3            pw_input[0] = 0x40;
+  19   3          }
+  20   2          else{//数组未满
+  21   3            for(i = 6;i >= pw_index;i--){
+  22   4              pw_input[i+1] = pw_input[i];
+  23   4            }
+  24   3            pw_input[i+1] = 0x40;
+  25   3          }
+  26   2        }
+  27   1      }
+  28          
+  29          void mPW_Ins(u8 b)//输入一位密码
+  30          {
+  31   1        if(pw_input[0] == 0x40){
+  32   2          mPW_Shift(0);
+  33   2          pw_index--;
+  34   2          pw_input[7] = b;
+  35   2        }
+  36   1      }
+  37          
+  38          void mPW_Del(void)//删除一位密码
+  39          {
+  40   1        if(pw_input[7] != 0x40){
+  41   2          mPW_Shift(1);
+  42   2          pw_index++;
+  43   2        }
+  44   1      }
+  45          
+  46          void mPW_Clear(void){//清除输入的密码
+  47   1        u8 i;
+  48   1        for(i = 0;i < 8;i++){
+  49   2          pw_input[i] = 0x40;
+  50   2        }
+  51   1        pw_index = 8;
+  52   1      }
+  53          
+  54          bit mPW_IsEmpty(void)//判断输入密码是否有空格
+C51 COMPILER V9.60.0.0   PW                                                                06/25/2025 11:40:13 PAGE 2   
+
+  55          {
+  56   1          u8 i;
+  57   1          for (i = 0; i < 8; i++) {
+  58   2              if (pw_input[i] == 0x40) {
+  59   3                  return 1;
+  60   3              }
+  61   2          }
+  62   1          return 0;
+  63   1      }
+  64          
+  65          bit mPW_IsCorrect(void) // 密码判断函数
+  66          {
+  67   1          u8 i, login;
+  68   1      
+  69   1          for (login = 0; login < USER_MAX; login++) {
+  70   2              for (i = 0; i < 8; i++) {
+  71   3                  if (pw_input[i] != password[login][i]) {
+  72   4                      break; // 如果当前密码不匹配，跳出内层循环
+  73   4                  }
+  74   3              }
+  75   2              if (i == 8) { // 如果内层循环正常结束，说明密码匹配
+  76   3                  user = login;//登录用户ID确认
+  77   3                  return 1;
+  78   3              }
+  79   2          }
+  80   1          return 0; // 如果所有密码都不匹配，返回0
+  81   1      }
+  82          
+  83          
+  84          //超级管理员密码判断函数
+  85          bit mPW_IsAdmin(void)
+  86          {
+  87   1        u8 i;
+  88   1        for(i = 0;i < 8;i++){
+  89   2          if(pw_input[i] != admin[i])
+  90   2            return 0;
+  91   2        }
+  92   1        return 1;
+  93   1      }
+  94          
+  95          void mPW_AdminSet(void)//设置管理员密码
+  96          {
+  97   1        u8 i;
+  98   1        for(i = 0;i < 8;i++){
+  99   2          admin[i] = pw_input[i];
+ 100   2        }
+ 101   1      }
+ 102          
+ 103          void mPW_Set(void)//设置密码
+ 104          {
+ 105   1        u8 i;
+ 106   1        for(i = 0;i < 8;i++){
+ 107   2          password[user][i] = pw_input[i];
+ 108   2        }
+ 109   1      }
+ 110          
+ 111          void mPW_Read(void)//从E2PROM读取密码到程序
+ 112          {
+ 113   1        u8 i;
+ 114   1        for(i = 0;i < USER_MAX;i++)
+ 115   1          EEPROM_Read(password[i],i*8,8);
+ 116   1        EEPROM_Read(admin,i*8,8);
+C51 COMPILER V9.60.0.0   PW                                                                06/25/2025 11:40:13 PAGE 3   
+
+ 117   1      }
+ 118          
+ 119          void mPW_Observe(void)//管理员可读取旧密码
+ 120          {
+ 121   1        u8 i;
+ 122   1        for(i = 0;i < 8;i++){
+ 123   2          pw_input[i] = password[user][i];
+ 124   2        }
+ 125   1      }
+ 126          
+ 127          void mPW_Main(void)//扫描键盘密码
+ 128          {
+ 129   1          if ((pres == 0x18) || (pres == 0x14))
+ 130   1              mPW_Ins(0);
+ 131   1          if (pres == 0x28)
+ 132   1              mPW_Ins(1);
+ 133   1          if (pres == 0x24)
+ 134   1              mPW_Ins(2);
+ 135   1          if (pres == 0x22)
+ 136   1              mPW_Ins(3);
+ 137   1          if (pres == 0x48)
+ 138   1              mPW_Ins(4);
+ 139   1          if (pres == 0x44)
+ 140   1              mPW_Ins(5);
+ 141   1          if (pres == 0x42)
+ 142   1              mPW_Ins(6);
+ 143   1          if (pres == 0x88)
+ 144   1              mPW_Ins(7);
+ 145   1          if (pres == 0x84)
+ 146   1              mPW_Ins(8);
+ 147   1          if (pres == 0x82)
+ 148   1              mPW_Ins(9);
+ 149   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    556    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       1
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
